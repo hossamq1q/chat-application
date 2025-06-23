@@ -3,7 +3,7 @@ import { Services } from '../../utils/constants';
 import { Inject, Injectable } from '@nestjs/common';
 import { IAuthService } from '../auth';
 import { User } from '../../utils/typeorm';
-import { IUserService } from '../../users/user';
+import { IUserService } from '../../users/interfaces/user';
 import { instanceToPlain } from "class-transformer";
 
 @Injectable()

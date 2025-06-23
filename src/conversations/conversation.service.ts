@@ -8,7 +8,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Conversation, Message, User } from "../utils/typeorm";
 import { Repository } from 'typeorm';
-import { IUserService } from '../users/user';
+import { IUserService } from '../users/interfaces/user';
 import { Services } from '../utils/constants';
 import { ConversationNotFoundException } from './exceptions/conversationNotFound';
 import { CreateConversationException } from './exceptions/createConversation';

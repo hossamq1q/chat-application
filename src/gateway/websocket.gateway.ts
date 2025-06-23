@@ -5,17 +5,24 @@ import {
   OnGatewayDisconnect,
   SubscribeMessage,
   WebSocketGateway,
-  WebSocketServer
-} from "@nestjs/websockets";
+  WebSocketServer,
+} from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { OnEvent } from '@nestjs/event-emitter';
 import { AuthenticatedSocket } from '../utils/interfaces';
 import { Inject } from '@nestjs/common';
 import { Services } from '../utils/constants';
 import { IGatewaySessionManager } from './gateway.session';
-import { Conversation, Group, Message } from "../utils/typeorm";
+import { Conversation, Group, GroupMessage, Message } from '../utils/typeorm';
 import { IConversationService } from '../conversations/conversation';
-import { DeleteMessageParams } from '../utils/types';
+import {
+  AddGroupUserResponse,
+  CreateGroupMessageResponse,
+  DeleteGroupMessagePayload,
+  DeleteMessageParams,
+  RemoveGroupUserResponse,
+  ResponseLeaveUserGroup,
+} from '../utils/types';
 
 @WebSocketGateway({
   cors: {
@@ -127,9 +134,7 @@ export class MessagingGateway
     @MessageBody() data: any,
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    console.log('onGroupJoin');
     client.join(`group-${data.groupId}`);
-    console.log(client.rooms);
     client.to(`group-${data.groupId}`).emit('userGroupJoin');
   }
 
@@ -138,12 +143,9 @@ export class MessagingGateway
     @MessageBody() data: any,
     @ConnectedSocket() client: AuthenticatedSocket,
   ) {
-    console.log('onGroupLeave');
     client.leave(`group-${data.groupId}`);
-    console.log(client.rooms);
     client.to(`group-${data.groupId}`).emit('userGroupLeave');
   }
-
 
   @OnEvent('group.owner.update')
   handleGroupOwnerUpdate(payload: Group) {
@@ -155,5 +157,70 @@ export class MessagingGateway
     if (newOwnerSocket && !socketsInRoom.has(newOwnerSocket.id)) {
       newOwnerSocket.emit('onGroupOwnerUpdate', payload);
     }
+  }
+
+  @OnEvent('group.user.add')
+  handleGroupUserAdd(payload: AddGroupUserResponse) {
+    const recipientSocket = this.sessions.getUserSocket(payload.user.id);
+    this.server
+      .to(`group-${payload.group.id}`)
+      .emit('onGroupReceivedNewUser', payload);
+    recipientSocket && recipientSocket.emit('onGroupUserAdd', payload);
+  }
+
+  @OnEvent('group.user.remove')
+  handleGroupUserRemove(payload: RemoveGroupUserResponse) {
+    const { group, user } = payload;
+    const ROOM_NAME = `group-${payload.group.id}`;
+    const removedUserSocket = this.sessions.getUserSocket(user.id);
+    if (removedUserSocket) {
+      removedUserSocket.emit('onGroupRemoved', payload);
+      removedUserSocket.leave(ROOM_NAME);
+    }
+    this.server.to(ROOM_NAME).emit('onGroupRecipientRemoved', payload);
+    const onlineUsers = group.users
+      .map((user) => this.sessions.getUserSocket(user.id) && user)
+      .filter((user) => user);
+    this.server.to(ROOM_NAME).emit('onlineGroupUsersReceived', { onlineUsers });
+  }
+
+  @OnEvent('group.user.leave')
+  handleGroupUserLeave(payload: ResponseLeaveUserGroup) {
+    const ROOM_NAME = `group-${payload.group.id}`;
+    const { rooms } = this.server.sockets.adapter;
+    const socketsInRoom = rooms.get(ROOM_NAME);
+    const leftUserSocket = this.sessions.getUserSocket(payload.userId);
+    if (leftUserSocket && socketsInRoom) {
+      if (socketsInRoom.has(leftUserSocket.id)) {
+        leftUserSocket.leave(ROOM_NAME);
+        return this.server
+          .to(ROOM_NAME)
+          .emit('onGroupParticipantLeft', payload);
+      } else {
+        leftUserSocket.emit('onGroupParticipantLeft', payload);
+        this.server.to(ROOM_NAME).emit('onGroupParticipantLeft', payload);
+        return;
+      }
+    }
+    if (leftUserSocket && !socketsInRoom) {
+      return leftUserSocket.emit('onGroupParticipantLeft', payload);
+    }
+  }
+
+  @OnEvent('group.message.create')
+  async handleGroupMessageCreate(payload: CreateGroupMessageResponse) {
+    this.server.to(`group-${payload.group.id}`).emit('onGroupMessage', payload);
+  }
+
+  @OnEvent('group.message.update')
+  async handleGroupMessageUpdate(payload: GroupMessage) {
+    const room = `group-${payload.group.id}`;
+    this.server.to(room).emit('onGroupMessageUpdate', payload);
+  }
+
+  @OnEvent('group.message.delete')
+  async handleGroupMessageDelete(payload: DeleteGroupMessagePayload) {
+    const room = `group-${payload.groupId}`;
+    this.server.to(room).emit('onGroupMessageDelete', payload);
   }
 }

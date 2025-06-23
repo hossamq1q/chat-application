@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Inject, Param, Patch, Post } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Inject,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  UploadedFile, UseGuards,
+  UseInterceptors
+} from "@nestjs/common";
 import { Routes, Services } from '../../utils/constants';
 import { IGroupService } from '../interfaces/group';
 import { AuthUser } from '../../utils/decorator';
@@ -6,8 +17,12 @@ import { User } from '../../utils/typeorm';
 import { CreateGroupDto } from '../dtos/createGroup.dto';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { TransferOwnerDto } from "../dtos/transferOwner.dto";
+import { FileInterceptor } from "@nestjs/platform-express";
+import { UpdateGroupDetailsDto } from "../dtos/updateGroupDetails.dto";
+import { AuthenticatedGuard } from "../../auth/utils/guards";
 
 @Controller(Routes.GROUPS)
+@UseGuards(AuthenticatedGuard)
 export class GroupController {
   constructor(
     @Inject(Services.GROUPS) private readonly groupService: IGroupService,
@@ -34,7 +49,7 @@ export class GroupController {
     return this.groupService.findGroupById(id);
   }
 
-  @Patch(':id/owner')
+  @Patch('owner/:id')
   async updateGroupOwner(
     @AuthUser() { id: userId }: User,
     @Param('id') groupId: number,
@@ -44,5 +59,16 @@ export class GroupController {
     const group = await this.groupService.transferGroupOwner(params);
     this.eventEmitter.emit('group.owner.update', group);
     return group;
+  }
+
+  @Patch('details/:id')
+  @UseInterceptors(FileInterceptor('avatar'))
+  async updateGroupDetails(
+    @Body() { title }: UpdateGroupDetailsDto,
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() avatar: Express.Multer.File,
+    @AuthUser() user:User
+  ) {
+    return this.groupService.updateDetails({ id, avatar, title ,user});
   }
 }

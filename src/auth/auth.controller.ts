@@ -16,7 +16,7 @@ import { Routes, Services } from '../utils/constants';
 import { AuthService } from './auth.service';
 import { IAuthService } from './auth';
 import { CreateUserDto } from './dtos/createUser.dto';
-import { IUserService } from '../users/user';
+import { IUserService } from '../users/interfaces/user';
 import { AuthenticatedGuard, LocalAuthGuard } from './utils/guards';
 import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';

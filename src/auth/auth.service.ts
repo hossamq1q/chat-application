@@ -2,7 +2,7 @@ import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
 import { IAuthService } from './auth';
 import { Services } from '../utils/constants';
 import { ValidateUserDetails } from '../utils/types';
-import { IUserService } from '../users/user';
+import { IUserService } from '../users/interfaces/user';
 import { compareHash } from '../utils/helpers';
 
 @Injectable()

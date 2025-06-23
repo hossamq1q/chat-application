@@ -4,7 +4,7 @@ import { ConversationService } from './conversation.service';
 import { Services } from '../utils/constants';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Conversation, Message, User } from "../utils/typeorm";
-import { UserService } from '../users/user.service';
+import { UserService } from '../users/services/user.service';
 import { UsersModule } from '../users/users.module';
 
 @Module({
